@@ -5,6 +5,8 @@ import AddBtn from '../component/addbtn';
 import MedicineCard from '../component/MedicineCard';
 import AppointmentsScreen from './AppointmentsScreen';
 import { TouchableOpacity } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
+
 
 const screenWidth = Dimensions.get('window').width;
 
@@ -31,7 +33,7 @@ export default function DashboardScreen({ navigation }) {
         <View style={styles.right}>
           <TouchableOpacity onPress={() => navigation.navigate('ProfileScreen')} activeOpacity={0.7}>
             <View style={styles.profileIcon}>
-              <Icon name="person" size={30} color="#2298d8" />
+              <MaterialIcons name="person" size={30} color="#2298d8" />
             </View>
           </TouchableOpacity>
         </View>

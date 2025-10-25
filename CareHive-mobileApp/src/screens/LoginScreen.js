@@ -9,6 +9,7 @@ import {
   Dimensions,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { MaterialIcons } from '@expo/vector-icons';
 
 const { width } = Dimensions.get('window');
 
@@ -34,7 +35,7 @@ export default function LoginScreen({ navigation }) {
 
             {/* Username Input */}
             <View style={styles.inputWrapper}>
-              <Icon name="person" size={20} color="#777" style={styles.icon} />
+              <MaterialIcons name="person" size={20} color="#777" style={styles.icon} />
               <TextInput
                 style={styles.input}
                 placeholder="Username"
@@ -44,7 +45,7 @@ export default function LoginScreen({ navigation }) {
 
             {/* Password Input */}
             <View style={styles.inputWrapper}>
-              <Icon name="lock" size={20} color="#777" style={styles.icon} />
+              <MaterialIcons name="lock" size={20} color="#777" style={styles.icon} />
               <TextInput
                 style={styles.input}
                 placeholder="Password"
