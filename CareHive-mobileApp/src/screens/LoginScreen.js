@@ -1,29 +1,55 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
-  ImageBackground,
   TextInput,
   TouchableOpacity,
+  Alert,
+  ImageBackground,
   Dimensions,
+  StyleSheet,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialIcons';
 import { MaterialIcons } from '@expo/vector-icons';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../DB/firebaseConfig'; // Make sure db is exported from firebaseConfig.js
 
 const { width } = Dimensions.get('window');
 
 export default function LoginScreen({ navigation }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert('Error', 'Please enter email and password');
+      return;
+    }
+
+    try {
+      const usersRef = collection(db, 'Users');
+      const q = query(usersRef, where('email', '==', email), where('password', '==', password));
+      const querySnapshot = await getDocs(q);
+
+      if (!querySnapshot.empty) {
+        console.log('User logged in:', querySnapshot.docs[0].data());
+        navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
+      } else {
+        Alert.alert('Login Failed', 'Invalid email or password');
+      }
+    } catch (error) {
+      console.log('Login error:', error.message);
+      Alert.alert('Error', 'Something went wrong');
+    }
+  };
+
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerText}>Welcome to</Text>
         <Text style={styles.headerTextHighlight}>CareHive</Text>
         <Text style={styles.subText}>Track Your Health Daily</Text>
       </View>
 
-      {/* Background Image */}
       <ImageBackground
         source={require('../assets/img/doca.png')}
         style={styles.image}
@@ -33,50 +59,47 @@ export default function LoginScreen({ navigation }) {
           <View style={styles.form}>
             <Text style={styles.loginTitle}>LOGIN</Text>
 
-            {/* Username Input */}
             <View style={styles.inputWrapper}>
               <MaterialIcons name="person" size={20} color="#777" style={styles.icon} />
               <TextInput
                 style={styles.input}
-                placeholder="Username"
+                placeholder="Email"
                 placeholderTextColor="#aaa"
+                autoCapitalize="none"
+                keyboardType="email-address"
+                value={email}
+                onChangeText={setEmail}
               />
             </View>
 
-            {/* Password Input */}
             <View style={styles.inputWrapper}>
               <MaterialIcons name="lock" size={20} color="#777" style={styles.icon} />
               <TextInput
                 style={styles.input}
                 placeholder="Password"
                 secureTextEntry
-                placeholderTextColor="#aaa"
+                value={password}
+                onChangeText={setPassword}
               />
             </View>
 
-            {/* Login Button */}
-            <TouchableOpacity
-              style={styles.loginButton}
-              onPress={() =>
-                navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] })
-              }
-            >
+            <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
               <Text style={styles.loginText}>Login</Text>
             </TouchableOpacity>
 
-
             <View style={styles.footer}>
-  <Text style={styles.footerText}>Don't have an account? </Text>
-  <TouchableOpacity onPress={() => navigation.navigate('RegisterScreen')}>
-    <Text style={styles.signup}>Sign Up</Text>
-  </TouchableOpacity>
-</View>
+              <Text style={styles.footerText}>Don't have an account? </Text>
+              <TouchableOpacity onPress={() => navigation.navigate('RegisterScreen')}>
+                <Text style={styles.signup}>Sign Up</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </ImageBackground>
     </View>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {

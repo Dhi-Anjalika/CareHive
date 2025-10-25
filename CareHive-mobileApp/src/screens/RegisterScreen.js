@@ -18,6 +18,7 @@ export default function RegisterScreen({ navigation }) {
   const [bloodGroup, setBloodGroup] = useState('');
   const [height, setHeight] = useState('');
   const [weight, setWeight] = useState('');
+  const [address,setAddress] = useState('');
 
   const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
@@ -107,6 +108,19 @@ export default function RegisterScreen({ navigation }) {
             onChangeText={setPhone}
             keyboardType="phone-pad"
             maxLength={10}
+          />
+        </View>
+
+        <View style={styles.inputGroup}>
+          <View style={styles.iconContainer}>
+            <Icon name="location-on" size={20} color="#2298d8" />
+          </View>
+          <TextInput
+            style={styles.input}
+            placeholder="address"
+            placeholderTextColor="#999"
+            value={address}
+            onChangeText={setAddress}
           />
         </View>
 

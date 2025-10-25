@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import AddFamilyMembers from './AddFamilyMembers';
 
 const familyData = {
   '1': {
@@ -141,6 +142,12 @@ export default function ProfileScreen({ navigation }) {
         onPress={() => navigation.navigate('EditProfile', { memberId: selectedMember })}
       >
         <Text style={styles.editButtonText}>Edit Medical Info</Text>
+      </TouchableOpacity>
+            <TouchableOpacity
+        style={styles.editButton}
+        onPress={() => navigation.navigate('AddFamilyMembers', { memberId: selectedMember })}
+      >
+        <Text style={styles.editButtonText}>Add Family members</Text>
       </TouchableOpacity>
     </ScrollView>
   );
