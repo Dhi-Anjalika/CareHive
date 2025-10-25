@@ -10,6 +10,8 @@ import {
   Platform,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { collection, addDoc } from 'firebase/firestore';
+import { db } from '../DB/firebaseConfig';
 
 export default function RegisterScreen({ navigation }) {
   const [name, setName] = useState('');
@@ -18,12 +20,14 @@ export default function RegisterScreen({ navigation }) {
   const [bloodGroup, setBloodGroup] = useState('');
   const [height, setHeight] = useState('');
   const [weight, setWeight] = useState('');
-  const [address,setAddress] = useState('');
+  const [address, setAddress] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
   const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
-  const handleRegister = () => {
-    if (!name || !nic || !phone || !bloodGroup || !height || !weight) {
+  const handleRegister = async () => {
+    if (!name || !nic || !phone || !bloodGroup || !height || !weight || !email || !password || !address) {
       Alert.alert('Missing Info', 'Please fill all fields');
       return;
     }
@@ -34,27 +38,29 @@ export default function RegisterScreen({ navigation }) {
     }
 
     const userData = {
-      id: '1',
       name,
-      relation: 'Self',
       nic,
       phone,
-      address: '',
+      email,
+      password,
+      address,
       medicalId: {
         bloodGroup,
         height: `${height} cm`,
         weight: `${weight} kg`,
-        age: 0,
-        gender: 'Not specified',
-        allergies: '',
-        chronicConditions: '',
       },
     };
 
-    console.log('Registered:', userData);
-    Alert.alert('Success', 'Profile created!', [
-      { text: 'Continue', onPress: () => navigation.replace('Dashboard') },
-    ]);
+    try {
+      const docRef = await addDoc(collection(db, 'Users'), userData);
+      console.log('User registered with ID:', docRef.id);
+      Alert.alert('Success', 'Profile created!', [
+        { text: 'Continue', onPress: () => navigation.replace('Login') },
+      ]);
+    } catch (error) {
+      console.error('Error saving user:', error);
+      Alert.alert('Error', 'Something went wrong.');
+    }
   };
 
   return (
@@ -65,7 +71,6 @@ export default function RegisterScreen({ navigation }) {
       </View>
 
       <View style={styles.form}>
-        {/* Full Name */}
         <View style={styles.inputGroup}>
           <View style={styles.iconContainer}>
             <Icon name="person" size={20} color="#2298d8" />
@@ -79,14 +84,13 @@ export default function RegisterScreen({ navigation }) {
           />
         </View>
 
-        {/* NIC */}
         <View style={styles.inputGroup}>
           <View style={styles.iconContainer}>
             <Icon name="badge" size={20} color="#2298d8" />
           </View>
           <TextInput
             style={styles.input}
-            placeholder="NIC "
+            placeholder="NIC"
             placeholderTextColor="#999"
             value={nic}
             onChangeText={setNic}
@@ -95,7 +99,6 @@ export default function RegisterScreen({ navigation }) {
           />
         </View>
 
-        {/* Phone */}
         <View style={styles.inputGroup}>
           <View style={styles.iconContainer}>
             <Icon name="phone" size={20} color="#2298d8" />
@@ -117,43 +120,62 @@ export default function RegisterScreen({ navigation }) {
           </View>
           <TextInput
             style={styles.input}
-            placeholder="address"
+            placeholder="Address"
             placeholderTextColor="#999"
             value={address}
             onChangeText={setAddress}
           />
         </View>
 
-        {/* Blood Group */}
+        <View style={styles.inputGroup}>
+          <View style={styles.iconContainer}>
+            <Icon name="email" size={20} color="#2298d8" />
+          </View>
+          <TextInput
+            style={styles.input}
+            placeholder="Email"
+            placeholderTextColor="#999"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+          />
+        </View>
+
+        <View style={styles.inputGroup}>
+          <View style={styles.iconContainer}>
+            <Icon name="lock" size={20} color="#2298d8" />
+          </View>
+          <TextInput
+            style={styles.input}
+            placeholder="Password"
+            placeholderTextColor="#999"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+          />
+        </View>
+
         <View style={styles.inputGroup}>
           <View style={styles.iconContainer}>
             <Icon name="bloodtype" size={20} color="#d32f2f" />
           </View>
           <Text style={styles.bloodGroupLabel}>Select Blood Group</Text>
         </View>
+
         <View style={styles.bloodGroupContainer}>
-          {bloodGroups.map((group) => (
+          {bloodGroups.map(group => (
             <TouchableOpacity
               key={group}
-              style={[
-                styles.bloodGroupButton,
-                bloodGroup === group && styles.bloodGroupButtonActive,
-              ]}
+              style={[styles.bloodGroupButton, bloodGroup === group && styles.bloodGroupButtonActive]}
               onPress={() => setBloodGroup(group)}
             >
-              <Text
-                style={[
-                  styles.bloodGroupText,
-                  bloodGroup === group && styles.bloodGroupTextActive,
-                ]}
-              >
+              <Text style={[styles.bloodGroupText, bloodGroup === group && styles.bloodGroupTextActive]}>
                 {group}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        {/* Height & Weight */}
         <View style={styles.row}>
           <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
             <View style={styles.iconContainer}>
@@ -168,6 +190,7 @@ export default function RegisterScreen({ navigation }) {
               keyboardType="numeric"
             />
           </View>
+
           <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
             <View style={styles.iconContainer}>
               <Icon name="scale" size={20} color="#2298d8" />
@@ -198,6 +221,7 @@ export default function RegisterScreen({ navigation }) {
   );
 }
 
+// All your original styles unchanged
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,

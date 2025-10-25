@@ -10,19 +10,26 @@ import {
   Platform,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { collection, addDoc } from 'firebase/firestore';
+import { db } from '../DB/firebaseConfig';
+import { useUser } from '../contexts/UserContext';
 
 export default function AddFamilyMembers({ navigation }) {
+  const [relation, setRelation] = useState('');
   const [name, setName] = useState('');
   const [nic, setNic] = useState('');
   const [phone, setPhone] = useState('');
   const [bloodGroup, setBloodGroup] = useState('');
   const [height, setHeight] = useState('');
   const [weight, setWeight] = useState('');
+  const [birthYear, setBirthYear] = useState(''); // new state
+
+  const { user } = useUser(); // get logged-in user
 
   const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
-  const handleRegister = () => {
-    if (!name || !nic || !phone || !bloodGroup || !height || !weight) {
+  const handleRegister = async () => {
+    if (!relation || !name || !nic || !phone || !bloodGroup || !height || !weight || !birthYear) {
       Alert.alert('Missing Info', 'Please fill all fields');
       return;
     }
@@ -32,28 +39,44 @@ export default function AddFamilyMembers({ navigation }) {
       return;
     }
 
-    const userData = {
-      id: '1',
+    if (!user || !user.id) {
+      Alert.alert('Error', 'User not logged in');
+      return;
+    }
+
+    const familyMemberData = {
+      userId: user.id, // FK to Users collection
+      relation,
       name,
-      relation: 'Self',
       nic,
       phone,
-      address: '',
+      birthYear, // save birth year
       medicalId: {
         bloodGroup,
         height: `${height} cm`,
         weight: `${weight} kg`,
-        age: 0,
-        gender: 'Not specified',
-        allergies: '',
-        chronicConditions: '',
       },
     };
 
-    console.log('Registered:', userData);
-    Alert.alert('Success', 'Profile created!', [
-      { text: 'Continue', onPress: () => navigation.replace('Dashboard') },
-    ]);
+    try {
+      const docRef = await addDoc(collection(db, 'relations'), familyMemberData);
+      console.log('Document ID:', docRef.id);
+      Alert.alert('Success', 'Family member added!', [
+        { text: 'Continue', onPress: () => navigation.goBack() },
+      ]);
+      // reset form
+      setRelation('');
+      setName('');
+      setNic('');
+      setPhone('');
+      setBloodGroup('');
+      setHeight('');
+      setWeight('');
+      setBirthYear(''); // reset birth year
+    } catch (error) {
+      console.log('Error adding family member:', error.message);
+      Alert.alert('Error', 'Failed to add family member');
+    }
   };
 
   return (
@@ -64,6 +87,20 @@ export default function AddFamilyMembers({ navigation }) {
       </View>
 
       <View style={styles.form}>
+        {/* Relation */}
+        <View style={styles.inputGroup}>
+          <View style={styles.iconContainer}>
+            <Icon name="person" size={20} color="#2298d8" />
+          </View>
+          <TextInput
+            style={styles.input}
+            placeholder="Relation (amma, thaththa)"
+            placeholderTextColor="#999"
+            value={relation}
+            onChangeText={setRelation}
+          />
+        </View>
+
         {/* Full Name */}
         <View style={styles.inputGroup}>
           <View style={styles.iconContainer}>
@@ -85,7 +122,7 @@ export default function AddFamilyMembers({ navigation }) {
           </View>
           <TextInput
             style={styles.input}
-            placeholder="NIC "
+            placeholder="NIC"
             placeholderTextColor="#999"
             value={nic}
             onChangeText={setNic}
@@ -107,6 +144,22 @@ export default function AddFamilyMembers({ navigation }) {
             onChangeText={setPhone}
             keyboardType="phone-pad"
             maxLength={10}
+          />
+        </View>
+
+        {/* Birth Year */}
+        <View style={styles.inputGroup}>
+          <View style={styles.iconContainer}>
+            <Icon name="calendar-today" size={20} color="#2298d8" />
+          </View>
+          <TextInput
+            style={styles.input}
+            placeholder="Birth Year"
+            placeholderTextColor="#999"
+            value={birthYear}
+            onChangeText={setBirthYear}
+            keyboardType="numeric"
+            maxLength={4}
           />
         </View>
 
@@ -172,11 +225,11 @@ export default function AddFamilyMembers({ navigation }) {
         <TouchableOpacity style={styles.button} onPress={handleRegister}>
           <Text style={styles.buttonText}>Add</Text>
         </TouchableOpacity>
-
       </View>
     </ScrollView>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {

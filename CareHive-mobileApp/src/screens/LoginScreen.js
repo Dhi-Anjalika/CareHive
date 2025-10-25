@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import {
   View,
   Text,
@@ -11,13 +11,15 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '../DB/firebaseConfig'; // Make sure db is exported from firebaseConfig.js
+import { db } from '../DB/firebaseConfig';
+import { UserContext } from '../contexts/UserContext';
 
 const { width } = Dimensions.get('window');
 
 export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const { login } = useContext(UserContext);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -31,8 +33,19 @@ export default function LoginScreen({ navigation }) {
       const querySnapshot = await getDocs(q);
 
       if (!querySnapshot.empty) {
-        console.log('User logged in:', querySnapshot.docs[0].data());
-        navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
+        const userDoc = querySnapshot.docs[0];
+        const userData = userDoc.data();
+        const userId = userDoc.id;
+
+        console.log('User logged in:', userData);
+        console.log('Document ID:', userId);
+
+        login({ id: userId, ...userData });
+
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'MainTabs' }],
+        });
       } else {
         Alert.alert('Login Failed', 'Invalid email or password');
       }
@@ -100,7 +113,6 @@ export default function LoginScreen({ navigation }) {
   );
 }
 
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -114,13 +126,13 @@ const styles = StyleSheet.create({
   },
 
   headerText: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '600',
     color: '#222',
   },
 
   headerTextHighlight: {
-    fontSize: 32,
+    fontSize: 48,
     fontWeight: 'bold',
     color: '#2298d8',
   },
