@@ -1,16 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Image, Dimensions } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { useUser } from '../contexts/UserContext';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../DB/firebaseConfig';
 
 const screenHeight = Dimensions.get('window').height;
 
-const familyMembers = ['Myself', 'Amma', 'Thaththa', 'Akka'];
 
 export default function AddMedicine({ navigation }) {
   const [name, setName] = useState('');
   const [quantity, setQuantity] = useState('');
   const [times, setTimes] = useState(['']);
-  const [selectedMember, setSelectedMember] = useState('Myself'); // Default
+  const [selectedMember, setSelectedMember] = useState('Myself'); 
+
+  const { user } = useUser();
+  const [profiles, setProfiles] = useState([]);
+  const [selectedProfileId, setSelectedProfileId] = useState('self');
+  const [loading, setLoading] = useState(true);
 
   const handleAddTime = () => {
     setTimes([...times, '']);
@@ -36,6 +43,71 @@ export default function AddMedicine({ navigation }) {
     setSelectedMember('Myself');
   };
 
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!user || !user.id) {
+        setProfiles([]);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const selfProfile = {
+          id: 'self',
+          name: user.name || 'You',
+          relation: 'Self',
+          nic: user.nic || '',
+          phone: user.phone || '',
+          address: user.address || '',
+          medicalId: user.medicalId || {},
+        };
+
+        const q = query(collection(db, 'relations'), where('userId', '==', user.id));
+        const querySnapshot = await getDocs(q);
+        const familyList = [];
+        querySnapshot.forEach((doc) => {
+          familyList.push({
+            id: doc.id,
+            ...doc.data(),
+          });
+        });
+
+        setProfiles([selfProfile, ...familyList]);
+      } catch (error) {
+        Alert.alert('Error', 'Failed to load profiles.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [user?.id]);
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#2298d8" />
+        <Text style={styles.loadingText}>Loading your profile...</Text>
+      </View>
+    );
+  }
+
+  const selectedProfile = profiles.find(p => p.id === selectedProfileId);
+
+  if (profiles.length === 0) {
+    return (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyText}>No profile data available.</Text>
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={() => navigation.navigate('AddFamilyMembers')}
+        >
+          <Text style={styles.addButtonText}>Add Family Member</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Add New Medicine</Text>
@@ -51,16 +123,17 @@ export default function AddMedicine({ navigation }) {
       {/* Family Member Selector */}
       <Text style={styles.label}>For</Text>
       <View style={styles.memberSelector}>
-        {familyMembers.map((member) => (
-          <TouchableOpacity
-            key={member}
-            style={[styles.memberChip, selectedMember === member && styles.memberChipActive]}
-            onPress={() => setSelectedMember(member)}
-          >
-            <Text style={[styles.memberText, selectedMember === member && styles.memberTextActive]}>
-              {member}
-            </Text>
-          </TouchableOpacity>
+        {profiles.map((profile) => (
+        <TouchableOpacity
+          key={profile.id}
+          style={[styles.memberChip, selectedMember === profile.id && styles.memberChipActive]}
+          onPress={() => setSelectedMember(profile.id)}
+        >
+          <Text style={[styles.memberText, selectedMember === profile.id && styles.memberTextActive]}>
+            {profile.relation}
+          </Text>
+        </TouchableOpacity>
+
         ))}
       </View>
 
