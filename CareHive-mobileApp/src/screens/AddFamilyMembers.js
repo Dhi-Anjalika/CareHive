@@ -22,9 +22,9 @@ export default function AddFamilyMembers({ navigation }) {
   const [bloodGroup, setBloodGroup] = useState('');
   const [height, setHeight] = useState('');
   const [weight, setWeight] = useState('');
-  const [birthYear, setBirthYear] = useState(''); // new state
+  const [birthYear, setBirthYear] = useState('');
 
-  const { user } = useUser(); // get logged-in user
+  const { user } = useUser();
 
   const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
@@ -45,12 +45,12 @@ export default function AddFamilyMembers({ navigation }) {
     }
 
     const familyMemberData = {
-      userId: user.id, // FK to Users collection
+      userId: user.id,
       relation,
       name,
       nic,
       phone,
-      birthYear, // save birth year
+      birthYear,
       medicalId: {
         bloodGroup,
         height: `${height} cm`,
@@ -64,7 +64,6 @@ export default function AddFamilyMembers({ navigation }) {
       Alert.alert('Success', 'Family member added!', [
         { text: 'Continue', onPress: () => navigation.goBack() },
       ]);
-      // reset form
       setRelation('');
       setName('');
       setNic('');
@@ -72,7 +71,7 @@ export default function AddFamilyMembers({ navigation }) {
       setBloodGroup('');
       setHeight('');
       setWeight('');
-      setBirthYear(''); // reset birth year
+      setBirthYear('');
     } catch (error) {
       console.log('Error adding family member:', error.message);
       Alert.alert('Error', 'Failed to add family member');
@@ -82,12 +81,14 @@ export default function AddFamilyMembers({ navigation }) {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>CareHive</Text>
-        <Text style={styles.subtitle}>Create your family health profile</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Icon name="arrow-back" size={28} color="#2298d8" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Add Family Member</Text>
+        <View style={{ width: 28 }} />
       </View>
 
       <View style={styles.form}>
-        {/* Relation */}
         <View style={styles.inputGroup}>
           <View style={styles.iconContainer}>
             <Icon name="person" size={20} color="#2298d8" />
@@ -101,7 +102,6 @@ export default function AddFamilyMembers({ navigation }) {
           />
         </View>
 
-        {/* Full Name */}
         <View style={styles.inputGroup}>
           <View style={styles.iconContainer}>
             <Icon name="person" size={20} color="#2298d8" />
@@ -115,7 +115,6 @@ export default function AddFamilyMembers({ navigation }) {
           />
         </View>
 
-        {/* NIC */}
         <View style={styles.inputGroup}>
           <View style={styles.iconContainer}>
             <Icon name="badge" size={20} color="#2298d8" />
@@ -131,7 +130,6 @@ export default function AddFamilyMembers({ navigation }) {
           />
         </View>
 
-        {/* Phone */}
         <View style={styles.inputGroup}>
           <View style={styles.iconContainer}>
             <Icon name="phone" size={20} color="#2298d8" />
@@ -147,7 +145,6 @@ export default function AddFamilyMembers({ navigation }) {
           />
         </View>
 
-        {/* Birth Year */}
         <View style={styles.inputGroup}>
           <View style={styles.iconContainer}>
             <Icon name="calendar-today" size={20} color="#2298d8" />
@@ -163,7 +160,6 @@ export default function AddFamilyMembers({ navigation }) {
           />
         </View>
 
-        {/* Blood Group */}
         <View style={styles.inputGroup}>
           <View style={styles.iconContainer}>
             <Icon name="bloodtype" size={20} color="#d32f2f" />
@@ -192,7 +188,6 @@ export default function AddFamilyMembers({ navigation }) {
           ))}
         </View>
 
-        {/* Height & Weight */}
         <View style={styles.row}>
           <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
             <View style={styles.iconContainer}>
@@ -230,7 +225,6 @@ export default function AddFamilyMembers({ navigation }) {
   );
 }
 
-
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
@@ -239,19 +233,16 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'ios' ? 60 : 40,
   },
   header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    paddingHorizontal: 10,
     marginBottom: 25,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '800',
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
     color: '#2298d8',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
   },
   form: {
     backgroundColor: '#fff',
@@ -329,17 +320,6 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '600',
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-  },
-  footerText: {
-    color: '#666',
-  },
-  loginLink: {
-    color: '#2298d8',
     fontWeight: '600',
   },
 });

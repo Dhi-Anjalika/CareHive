@@ -1,51 +1,88 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  Alert,
+} from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import AddFamilyMembers from './AddFamilyMembers';
-
-const familyData = {
-  '1': {
-    id: '1',
-    name: 'Nimal Perera',
-    age: 32,
-    gender: 'Male',
-    bloodGroup: 'O+',
-    height: '172 cm',
-    weight: '68 kg',
-    nic: '199212345678',
-    phone: '077 123 4567',
-    address: 'No. 24, Galle Road, Colombo 03',
-  },
-  '2': {
-    id: '2',
-    name: 'Amma',
-    age: 62,
-    gender: 'Female',
-    bloodGroup: 'A+',
-    height: '158 cm',
-    weight: '60 kg',
-    nic: '196212345678',
-    phone: '071 234 5678',
-    address: 'No. 24, Galle Road, Colombo 03',
-  },
-  '3': {
-    id: '3',
-    name: 'Thaththa',
-    age: 65,
-    gender: 'Male',
-    bloodGroup: 'B+',
-    height: '165 cm',
-    weight: '72 kg',
-    nic: '195912345678',
-    phone: '070 345 6789',
-    address: 'No. 24, Galle Road, Colombo 03',
-  },
-};
+import { useUser } from '../contexts/UserContext';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../DB/firebaseConfig';
 
 export default function ProfileScreen({ navigation }) {
-  const [selectedMember, setSelectedMember] = useState('1');
+  const { user } = useUser();
+  const [profiles, setProfiles] = useState([]);
+  const [selectedProfileId, setSelectedProfileId] = useState('self');
+  const [loading, setLoading] = useState(true);
 
-  const userData = familyData[selectedMember];
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!user || !user.id) {
+        setProfiles([]);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const selfProfile = {
+          id: 'self',
+          name: user.name || 'You',
+          relation: 'Self',
+          nic: user.nic || '',
+          phone: user.phone || '',
+          address: user.address || '',
+          medicalId: user.medicalId || {},
+        };
+
+        const q = query(collection(db, 'relations'), where('userId', '==', user.id));
+        const querySnapshot = await getDocs(q);
+        const familyList = [];
+        querySnapshot.forEach((doc) => {
+          familyList.push({
+            id: doc.id,
+            ...doc.data(),
+          });
+        });
+
+        setProfiles([selfProfile, ...familyList]);
+      } catch (error) {
+        Alert.alert('Error', 'Failed to load profiles.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [user?.id]);
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#2298d8" />
+        <Text style={styles.loadingText}>Loading your profile...</Text>
+      </View>
+    );
+  }
+
+  const selectedProfile = profiles.find(p => p.id === selectedProfileId);
+
+  if (profiles.length === 0) {
+    return (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyText}>No profile data available.</Text>
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={() => navigation.navigate('AddFamilyMembers')}
+        >
+          <Text style={styles.addButtonText}>Add Family Member</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <ScrollView style={styles.container}>
@@ -57,97 +94,116 @@ export default function ProfileScreen({ navigation }) {
         <View style={{ width: 28 }} />
       </View>
 
-      {/* Family Member Selector */}
       <View style={styles.memberSelector}>
-        {Object.values(familyData).map((member) => (
+        {profiles.map((profile) => (
           <TouchableOpacity
-            key={member.id}
+            key={profile.id}
             style={[
               styles.memberChip,
-              selectedMember === member.id && styles.memberChipActive,
+              selectedProfileId === profile.id && styles.memberChipActive,
             ]}
-            onPress={() => setSelectedMember(member.id)}
+            onPress={() => setSelectedProfileId(profile.id)}
           >
             <Text
               style={[
                 styles.memberText,
-                selectedMember === member.id && styles.memberTextActive,
+                selectedProfileId === profile.id && styles.memberTextActive,
               ]}
             >
-              {member.name}
+              {profile.relation}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      <View style={styles.profileCard}>
-        <View style={styles.avatar}>
-          <Icon name="person" size={60} color="#2298d8" />
-        </View>
-
-        <Text style={styles.name}>{userData.name}</Text>
-        <Text style={styles.subtitle}>{userData.age} years • {userData.gender}</Text>
-
-        <View style={styles.infoRow}>
-          <Icon name="bloodtype" size={20} color="#d32f2f" />
-          <View style={styles.infoTextContainer}>
-            <Text style={styles.infoLabel}>Blood Group</Text>
-            <Text style={styles.infoValue}>{userData.bloodGroup}</Text>
+      {selectedProfile && (
+        <View style={styles.profileCard}>
+          <View style={styles.avatar}>
+            <Icon name="person" size={60} color="#2298d8" />
           </View>
-        </View>
 
-        <View style={styles.infoRow}>
-          <Icon name="straighten" size={20} color="#2298d8" />
-          <View style={styles.infoTextContainer}>
-            <Text style={styles.infoLabel}>Height</Text>
-            <Text style={styles.infoValue}>{userData.height}</Text>
-          </View>
-        </View>
+          <Text style={styles.name}>{selectedProfile.name || 'N/A'}</Text>
 
-        <View style={styles.infoRow}>
-          <Icon name="scale" size={20} color="#2298d8" />
-          <View style={styles.infoTextContainer}>
-            <Text style={styles.infoLabel}>Weight</Text>
-            <Text style={styles.infoValue}>{userData.weight}</Text>
-          </View>
-        </View>
+          {selectedProfile.medicalId?.bloodGroup && (
+            <View style={styles.infoRow}>
+              <Icon name="bloodtype" size={20} color="#d32f2f" />
+              <View style={styles.infoTextContainer}>
+                <Text style={styles.infoLabel}>Blood Group</Text>
+                <Text style={styles.infoValue}>{selectedProfile.medicalId.bloodGroup}</Text>
+              </View>
+            </View>
+          )}
 
-        <View style={styles.infoRow}>
-          <Icon name="badge" size={20} color="#2298d8" />
-          <View style={styles.infoTextContainer}>
-            <Text style={styles.infoLabel}>NIC</Text>
-            <Text style={styles.infoValue}>{userData.nic}</Text>
-          </View>
-        </View>
+          {selectedProfile.medicalId?.height && (
+            <View style={styles.infoRow}>
+              <Icon name="straighten" size={20} color="#2298d8" />
+              <View style={styles.infoTextContainer}>
+                <Text style={styles.infoLabel}>Height</Text>
+                <Text style={styles.infoValue}>{selectedProfile.medicalId.height}</Text>
+              </View>
+            </View>
+          )}
 
-        <View style={styles.infoRow}>
-          <Icon name="phone" size={20} color="#2298d8" />
-          <View style={styles.infoTextContainer}>
-            <Text style={styles.infoLabel}>Phone</Text>
-            <Text style={styles.infoValue}>{userData.phone}</Text>
-          </View>
-        </View>
+          {selectedProfile.medicalId?.weight && (
+            <View style={styles.infoRow}>
+              <Icon name="scale" size={20} color="#2298d8" />
+              <View style={styles.infoTextContainer}>
+                <Text style={styles.infoLabel}>Weight</Text>
+                <Text style={styles.infoValue}>{selectedProfile.medicalId.weight}</Text>
+              </View>
+            </View>
+          )}
 
-        <View style={styles.infoRow}>
-          <Icon name="location-on" size={20} color="#2298d8" />
-          <View style={styles.infoTextContainer}>
-            <Text style={styles.infoLabel}>Address</Text>
-            <Text style={styles.infoValue}>{userData.address}</Text>
-          </View>
+          {selectedProfile.nic && (
+            <View style={styles.infoRow}>
+              <Icon name="badge" size={20} color="#2298d8" />
+              <View style={styles.infoTextContainer}>
+                <Text style={styles.infoLabel}>NIC</Text>
+                <Text style={styles.infoValue}>{selectedProfile.nic}</Text>
+              </View>
+            </View>
+          )}
+
+          {selectedProfile.phone && (
+            <View style={styles.infoRow}>
+              <Icon name="phone" size={20} color="#2298d8" />
+              <View style={styles.infoTextContainer}>
+                <Text style={styles.infoLabel}>Phone</Text>
+                <Text style={styles.infoValue}>{selectedProfile.phone}</Text>
+              </View>
+            </View>
+          )}
+
+          {selectedProfile.address && (
+            <View style={styles.infoRow}>
+              <Icon name="location-on" size={20} color="#2298d8" />
+              <View style={styles.infoTextContainer}>
+                <Text style={styles.infoLabel}>Address</Text>
+                <Text style={styles.infoValue}>{selectedProfile.address}</Text>
+              </View>
+            </View>
+          )}
         </View>
-      </View>
+      )}
 
       <TouchableOpacity
         style={styles.editButton}
-        onPress={() => navigation.navigate('EditProfile', { memberId: selectedMember })}
+        onPress={() => {
+          if (selectedProfileId === 'self') {
+            navigation.navigate('EditProfile', { isSelf: true });
+          } else {
+            navigation.navigate('EditProfile', { memberId: selectedProfileId });
+          }
+        }}
       >
         <Text style={styles.editButtonText}>Edit Medical Info</Text>
       </TouchableOpacity>
-            <TouchableOpacity
+
+      <TouchableOpacity
         style={styles.editButton}
-        onPress={() => navigation.navigate('AddFamilyMembers', { memberId: selectedMember })}
+        onPress={() => navigation.navigate('AddFamilyMembers')}
       >
-        <Text style={styles.editButtonText}>Add Family members</Text>
+        <Text style={styles.editButtonText}>Add Family Member</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -157,6 +213,41 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F6F9FF',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F6F9FF',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#666',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: '#F6F9FF',
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  addButton: {
+    backgroundColor: '#2298d8',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  addButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   header: {
     flexDirection: 'row',
@@ -177,6 +268,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 15,
     flexWrap: 'wrap',
+    marginTop: 20
   },
   memberChip: {
     paddingHorizontal: 16,
@@ -224,11 +316,6 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 5,
   },
-  subtitle: {
-    fontSize: 15,
-    color: '#666',
-    marginBottom: 20,
-  },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -256,6 +343,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
     marginTop: 10,
+    marginBottom: 20,
   },
   editButtonText: {
     color: '#fff',
