@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react'; // ✅ added useCallback
 import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { db } from '../DB/firebaseConfig';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { useUser } from '../contexts/UserContext';
-import { StyleSheet } from 'react-native'; // assume your original styles are here
+import { StyleSheet } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native'; // ✅ added
 
 export default function MedicineSummary() {
   const { user } = useUser();
@@ -29,9 +30,12 @@ export default function MedicineSummary() {
     }
   };
 
-  useEffect(() => {
-    fetchMedicines();
-  }, [user]);
+  // ✅ Replace useEffect with useFocusEffect
+  useFocusEffect(
+    useCallback(() => {
+      fetchMedicines();
+    }, [user])
+  );
 
   const filteredMeds = medicines.filter(med => med.relation === activePerson);
   const totalTaken = filteredMeds.reduce((sum, m) => sum + (m.taken || 0), 0);
@@ -130,6 +134,7 @@ export default function MedicineSummary() {
     </SafeAreaView>
   );
 }
+
 
 
 const styles = StyleSheet.create({

@@ -1,0 +1,18 @@
+{
+  "android": {
+    "package": "com.hashn.carehive"
+  },
+  "extra": {
+    "eas": {
+      "projectId": "a0ebfa67-6622-4151-8b0b-05ec0c84d5b2"
+    }
+  },
+  "expo": {
+    "ios": {
+      "bundleIdentifier": "com.hashn.carehive",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    }
+  }
+}

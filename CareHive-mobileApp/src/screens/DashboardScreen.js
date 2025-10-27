@@ -6,7 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Dimensions,
-  Platform, // ✅ Added Platform
+  Platform,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import AddBtn from '../component/addbtn';
@@ -67,12 +67,10 @@ export default function DashboardScreen({ navigation }) {
 
   // 🔁 Auto-refresh every 60 seconds while screen is focused
   useEffect(() => {
-    // Start interval when component mounts
     intervalRef.current = setInterval(() => {
       fetchMedicines();
-    }, 60 * 1000); // 60,000 ms = 1 minute
+    }, 60 * 1000);
 
-    // Clear interval when unmounting
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
@@ -80,21 +78,34 @@ export default function DashboardScreen({ navigation }) {
     };
   }, [user]);
 
-  // Convert time string to Date object
-  const getNextDoseTime = (timeStr) => {
-    if (!timeStr) return null;
+  // Generate dose times for today and yesterday
+  const getDoseTimesForDays = (timeStrings, daysBack = 1) => {
     const now = new Date();
-    const match = timeStr.match(/(\d{1,2}):(\d{2})(AM|PM)/i);
-    if (!match) return null;
+    const doses = [];
 
-    let hours = parseInt(match[1]);
-    const minutes = parseInt(match[2]);
-    const meridiem = match[3].toUpperCase();
+    for (let i = daysBack; i >= 0; i--) {
+      const date = new Date(now);
+      date.setDate(now.getDate() - i);
+      date.setHours(0, 0, 0, 0);
 
-    if (meridiem === 'PM' && hours < 12) hours += 12;
-    if (meridiem === 'AM' && hours === 12) hours = 0;
+      for (const timeStr of timeStrings) {
+        const match = timeStr.match(/(\d{1,2}):(\d{2})(AM|PM)/i);
+        if (!match) continue;
 
-    return new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes);
+        let hours = parseInt(match[1]);
+        const minutes = parseInt(match[2]);
+        const meridiem = match[3].toUpperCase();
+
+        if (meridiem === 'PM' && hours < 12) hours += 12;
+        if (meridiem === 'AM' && hours === 12) hours = 0;
+
+        const doseTime = new Date(date);
+        doseTime.setHours(hours, minutes, 0, 0);
+        doses.push({ timeStr, doseTime });
+      }
+    }
+
+    return doses.sort((a, b) => a.doseTime - b.doseTime);
   };
 
   // Schedule reminder 5 minutes before dose
@@ -112,62 +123,45 @@ export default function DashboardScreen({ navigation }) {
     });
   };
 
-  // 💡 Improved logic: show ALL medicines with future doses in "Next"
+  // Process medicines with improved due logic (✅ FIXED: includes skipped doses)
   const now = new Date();
-  const startOfDay = new Date(now);
-  startOfDay.setHours(0, 0, 0, 0);
-  const endOfDay = new Date(now);
-  endOfDay.setHours(23, 59, 59, 999);
-
   const processMedicines = medicines.map(med => {
-    const todayDoses = (med.times || []).map(timeStr => {
-      const doseTime = getNextDoseTime(timeStr);
-      return { timeStr, doseTime };
-    }).filter(item => item.doseTime);
+    const allDoses = getDoseTimesForDays(med.times || [], 1); // yesterday + today
+    const dosesUpToNow = allDoses.filter(d => d.doseTime <= now);
+    const futureDoses = allDoses.filter(d => d.doseTime > now);
 
-    let takenToday = 0;
-    if (med.lastTakenAt) {
-      const lastTakenDate = new Date(med.lastTakenAt);
-      if (lastTakenDate >= startOfDay && lastTakenDate <= endOfDay) {
-        takenToday = med.taken || 0;
-      }
-    }
-
+    // ✅ Count BOTH taken AND skipped as handled doses
+    const handledCount = (med.taken || 0) + (med.skipped || 0);
     let hasDue = false;
     let nextTime = null;
 
-    // Check from first un-taken dose onward
-    for (let i = takenToday; i < todayDoses.length; i++) {
-      const { doseTime, timeStr } = todayDoses[i];
-      if (doseTime <= now) {
+    // Check if any dose up to now was NOT handled
+    if (handledCount < dosesUpToNow.length) {
+      const firstUnhandled = dosesUpToNow[handledCount];
+      if (firstUnhandled) {
         hasDue = true;
-        nextTime = timeStr;
-        break;
-      } else if (!nextTime) {
-        nextTime = timeStr;
-        // Don't break — keep checking for due doses later
+        nextTime = firstUnhandled.timeStr;
       }
     }
 
-    const hasFuture = todayDoses.some((d, idx) => idx >= takenToday && d.doseTime > now);
+    // If no due, check for next future dose
+    if (!hasDue && futureDoses.length > 0) {
+      nextTime = futureDoses[0].timeStr;
+      scheduleReminder(med.name, futureDoses[0].doseTime);
+    }
 
     let status = 'Taken';
     if (hasDue) {
       status = 'Due';
-    } else if (hasFuture) {
+    } else if (nextTime) {
       status = 'Next';
-      // Schedule reminder for the first future dose
-      const firstFuture = todayDoses.find((d, idx) => idx >= takenToday && d.doseTime > now);
-      if (firstFuture) {
-        scheduleReminder(med.name, firstFuture.doseTime);
-      }
     }
 
     return {
       ...med,
       status,
       currentTime: nextTime,
-      takenToday,
+      // Note: 'takenToday' removed since no longer accurate or used
     };
   });
 
