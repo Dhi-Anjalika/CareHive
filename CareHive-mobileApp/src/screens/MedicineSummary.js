@@ -1,30 +1,41 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-} from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-
-const medicineData = [
-  { id: 1, name: 'Paracetamol', for: 'Amma', quantity: 5, times: 3, taken: 2, skipped: 1 },
-  { id: 2, name: 'Metformin', for: 'Thaththa', quantity: 7, times: 2, taken: 2, skipped: 0 },
-  { id: 3, name: 'Vitamin C', for: 'Myself', quantity: 10, times: 1, taken: 1, skipped: 0 },
-  { id: 4, name: 'Atorvastatin', for: 'Thaththa', quantity: 30, times: 1, taken: 15, skipped: 0 },
-];
-
-const familyMembers = ['Amma', 'Thaththa', 'Myself'];
+import { db } from '../DB/firebaseConfig';
+import { collection, getDocs, query, where } from 'firebase/firestore';
+import { useUser } from '../contexts/UserContext';
+import { StyleSheet } from 'react-native'; // assume your original styles are here
 
 export default function MedicineSummary() {
-  const [activeTab, setActiveTab] = useState('Amma');
+  const { user } = useUser();
+  const [medicines, setMedicines] = useState([]);
+  const [activePerson, setActivePerson] = useState(null);
+  const [relations, setRelations] = useState([]);
 
-  const filteredMeds = medicineData.filter(med => med.for === activeTab);
+  const fetchMedicines = async () => {
+    if (!user?.id) return;
+    try {
+      const q = query(collection(db, 'medicines'), where('userId', '==', user.id));
+      const snapshot = await getDocs(q);
+      const meds = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setMedicines(meds);
 
-  const totalTaken = filteredMeds.reduce((sum, m) => sum + m.taken, 0);
-  const totalSkipped = filteredMeds.reduce((sum, m) => sum + m.skipped, 0);
+      const uniqueRelations = [...new Set(meds.map(m => m.relation))];
+      setRelations(uniqueRelations);
+      if (!activePerson && uniqueRelations.length > 0) setActivePerson(uniqueRelations[0]);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    fetchMedicines();
+  }, [user]);
+
+  const filteredMeds = medicines.filter(med => med.relation === activePerson);
+  const totalTaken = filteredMeds.reduce((sum, m) => sum + (m.taken || 0), 0);
+  const totalSkipped = filteredMeds.reduce((sum, m) => sum + (m.skipped || 0), 0);
   const totalMeds = filteredMeds.length;
 
   return (
@@ -32,22 +43,22 @@ export default function MedicineSummary() {
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.title}>Medicine Summary</Text>
 
-        {/* Family Tabs */}
+        {/* Relation Buttons */}
         <View style={styles.tabContainer}>
-          {familyMembers.map(member => (
+          {relations.map(person => (
             <TouchableOpacity
-              key={member}
-              style={[styles.tab, activeTab === member && styles.activeTab]}
-              onPress={() => setActiveTab(member)}
+              key={person}
+              style={[styles.tab, activePerson === person && styles.activeTab]}
+              onPress={() => setActivePerson(person)}
             >
-              <Text style={[styles.tabText, activeTab === member && styles.activeTabText]}>
-                {member}
+              <Text style={[styles.tabText, activePerson === person && styles.activeTabText]}>
+                {person}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        {/* Summary for Selected Member */}
+        {/* Summary Card */}
         <View style={styles.summaryCard}>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Medicines</Text>
@@ -55,15 +66,11 @@ export default function MedicineSummary() {
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Taken</Text>
-            <Text style={[styles.summaryValue, { color: '#28a745' }]}>
-              {totalTaken}
-            </Text>
+            <Text style={[styles.summaryValue, { color: '#28a745' }]}>{totalTaken}</Text>
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Skipped</Text>
-            <Text style={[styles.summaryValue, { color: '#e53935' }]}>
-              {totalSkipped}
-            </Text>
+            <Text style={[styles.summaryValue, { color: '#e53935' }]}>{totalSkipped}</Text>
           </View>
         </View>
 
@@ -73,9 +80,9 @@ export default function MedicineSummary() {
             <Text style={styles.emptyText}>No medicines recorded</Text>
           </View>
         ) : (
-          filteredMeds.map((med) => {
-            const totalDoses = med.quantity * med.times;
-            const remaining = totalDoses - med.taken;
+          filteredMeds.map(med => {
+            const totalDoses = (med.quantity || 0) * (med.times?.length || 0);
+            const remaining = totalDoses - (med.taken || 0);
             const remainingPercent = totalDoses > 0 ? (remaining / totalDoses) * 100 : 0;
             const isLow = remaining <= 3;
 
@@ -91,12 +98,12 @@ export default function MedicineSummary() {
                   <View style={styles.takenSkippedRow}>
                     <View style={styles.statItem}>
                       <Text style={styles.takenLabel}>✅ Taken</Text>
-                      <Text style={styles.takenValue}>{med.taken}</Text>
+                      <Text style={styles.takenValue}>{med.taken || 0}</Text>
                     </View>
                     <View style={styles.divider} />
                     <View style={styles.statItem}>
                       <Text style={styles.skippedLabel}>❌ Skipped</Text>
-                      <Text style={styles.skippedValue}>{med.skipped}</Text>
+                      <Text style={styles.skippedValue}>{med.skipped || 0}</Text>
                     </View>
                   </View>
 
@@ -123,6 +130,7 @@ export default function MedicineSummary() {
     </SafeAreaView>
   );
 }
+
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#f0f4ff' },
