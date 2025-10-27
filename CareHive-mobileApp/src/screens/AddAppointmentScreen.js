@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,49 +7,115 @@ import {
   Alert,
   Platform,
   ScrollView,
+  ActivityIndicator,
   TextInput as RNTextInput,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { useUser } from '../contexts/UserContext';
+import { collection, query, where, getDocs, addDoc } from 'firebase/firestore';
+import { db } from '../DB/firebaseConfig';
 
 const AddAppointmentScreen = ({ navigation }) => {
   const [formData, setFormData] = useState({
-    patient: 'Myself',
+    patient: 'Self',
     doctor: '',
-    reason: '', 
+    reason: '',
     date: '',
     time: '',
     notes: '',
   });
 
+  const { user } = useUser();
+  const [profiles, setProfiles] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [documentId, setDocumentId] = useState(null);
 
-  const familyMembers = ['Myself', 'Amma', 'Thaththa', 'Akka'];
+  // Fetch user profiles
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!user || !user.id) {
+        setProfiles([]);
+        setLoading(false);
+        return;
+      }
 
-  const handleSave = () => {
-    const { patient, doctor, date, time } = formData;
+      try {
+        const userDocId = user.id || 'b9ZC7I1EK0FEKBAdU0tz';
+        setDocumentId(userDocId);
+
+        // Self profile
+        const selfProfile = {
+          id: 'self',
+          name: user.name || 'You',
+          relation: 'Self',
+          nic: user.nic || '',
+          phone: user.phone || '',
+          address: user.address || '',
+          medicalId: user.medicalId || {},
+        };
+
+        // Family members from Firestore
+        const q = query(collection(db, 'relations'), where('userId', '==', userDocId));
+        const querySnapshot = await getDocs(q);
+        const familyList = [];
+        querySnapshot.forEach((doc) => {
+          familyList.push({
+            id: doc.id,
+            ...doc.data(),
+          });
+        });
+
+        setProfiles([selfProfile, ...familyList]);
+      } catch (error) {
+        Alert.alert('Error', 'Failed to load profiles.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [user?.id]);
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#2298d8" />
+        <Text style={styles.loadingText}>Loading your profile...</Text>
+      </View>
+    );
+  }
+
+  // Save appointment to Firestore
+  const handleSave = async () => {
+    const { patient, doctor, date, time, reason, notes } = formData;
+
     if (!patient || !doctor.trim() || !date || !time) {
       Alert.alert('Missing Info', 'Please fill doctor, date, and time.');
       return;
     }
 
-    const newAppointment = {
-      id: Date.now().toString(),
-      patient,
-      doctor: doctor.trim(),
-      reason: formData.reason.trim(),
-      date,
-      time,
-      notes: formData.notes.trim(),
-      status: 'Scheduled',
-    };
+    try {
+      const appointment = {
+        userId: documentId,      // FK
+        relation: patient,       // Selected profile relation
+        doctor: doctor.trim(),
+        reason: reason.trim(),
+        date,
+        time,
+        notes: notes.trim(),
+        status: 'Scheduled',
+        createdAt: new Date(),
+      };
 
-   
-    console.log('Saved Appointment:', newAppointment);
-    
-    Alert.alert(
-      'Saved!',
-      'Appointment recorded successfully.',
-      [{ text: 'OK', onPress: () => navigation.goBack() }]
-    );
+      await addDoc(collection(db, 'appointments'), appointment);
+
+      Alert.alert('Success', 'Appointment saved successfully!', [
+        { text: 'OK', onPress: () => navigation.goBack() },
+      ]);
+    } catch (error) {
+      console.error('Error saving appointment:', error);
+      Alert.alert('Error', 'Failed to save appointment.');
+    }
   };
 
   return (
@@ -71,14 +137,22 @@ const AddAppointmentScreen = ({ navigation }) => {
         <View style={styles.section}>
           <Text style={styles.label}>For *</Text>
           <View style={styles.chipContainer}>
-            {familyMembers.map((member) => (
+            {profiles.map((profile) => (
               <TouchableOpacity
-                key={member}
-                style={[styles.chip, formData.patient === member && styles.chipActive]}
-                onPress={() => setFormData({ ...formData, patient: member })}
+                key={profile.id}
+                style={[
+                  styles.chip,
+                  formData.patient === profile.relation && styles.chipActive,
+                ]}
+                onPress={() => setFormData({ ...formData, patient: profile.relation })}
               >
-                <Text style={[styles.chipText, formData.patient === member && styles.chipTextActive]}>
-                  {member}
+                <Text
+                  style={[
+                    styles.chipText,
+                    formData.patient === profile.relation && styles.chipTextActive,
+                  ]}
+                >
+                  {profile.relation}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -107,27 +181,23 @@ const AddAppointmentScreen = ({ navigation }) => {
           />
         </View>
 
-        {/* Date (Manual Entry) */}
+        {/* Date */}
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Date *</Text>
           <RNTextInput
             style={styles.input}
-            placeholder="YYYY-MM-DD (e.g., 2024-07-20)"
+            placeholder="YYYY-MM-DD"
             value={formData.date}
-            onChangeText={(text) => {
-              // Optional: auto-format or validate
-              setFormData({ ...formData, date: text });
-            }}
-            keyboardType="default"
+            onChangeText={(text) => setFormData({ ...formData, date: text })}
           />
         </View>
 
-        {/* Time (Manual Entry) */}
+        {/* Time */}
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Time *</Text>
           <RNTextInput
             style={styles.input}
-            placeholder="e.g., 10:30 AM or 14:30"
+            placeholder="e.g., 10:30 AM"
             value={formData.time}
             onChangeText={(text) => setFormData({ ...formData, time: text })}
           />
@@ -151,10 +221,7 @@ const AddAppointmentScreen = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F6F9FF',
-  },
+  container: { flex: 1, backgroundColor: '#F6F9FF' },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -166,28 +233,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#2298d8',
-  },
-  saveButton: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#2298d8',
-  },
-  form: {
-    padding: 20,
-  },
-  label: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
-  },
-  inputGroup: {
-    marginBottom: 20,
-  },
+  headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#2298d8' },
+  saveButton: { fontSize: 16, fontWeight: '600', color: '#2298d8' },
+  form: { padding: 20 },
+  label: { fontSize: 15, fontWeight: '600', color: '#333', marginBottom: 8 },
+  inputGroup: { marginBottom: 20 },
   input: {
     backgroundColor: '#fff',
     padding: 14,
@@ -196,13 +246,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ddd',
   },
-  section: {
-    marginBottom: 20,
-  },
-  chipContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
+  section: { marginBottom: 20 },
+  chipContainer: { flexDirection: 'row', flexWrap: 'wrap' },
   chip: {
     paddingHorizontal: 14,
     paddingVertical: 8,
@@ -213,18 +258,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ddd',
   },
-  chipActive: {
-    backgroundColor: '#2298d8',
-    borderColor: '#2298d8',
-  },
-  chipText: {
-    fontSize: 14,
-    color: '#555',
-  },
-  chipTextActive: {
-    color: '#fff',
-    fontWeight: '600',
-  },
+  chipActive: { backgroundColor: '#2298d8', borderColor: '#2298d8' },
+  chipText: { fontSize: 14, color: '#555' },
+  chipTextActive: { color: '#fff', fontWeight: '600' },
 });
 
 export default AddAppointmentScreen;
