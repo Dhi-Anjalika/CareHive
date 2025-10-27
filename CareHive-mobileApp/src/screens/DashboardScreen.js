@@ -24,7 +24,6 @@ export default function DashboardScreen({ navigation }) {
   const [medicines, setMedicines] = useState([]);
   const intervalRef = useRef(null);
 
-  // Request notification permission
   useEffect(() => {
     const registerForNotifications = async () => {
       const { status } = await Notifications.getPermissionsAsync();
@@ -58,14 +57,14 @@ export default function DashboardScreen({ navigation }) {
     }
   };
 
-  // Refresh on focus
+
   useFocusEffect(
     useCallback(() => {
       fetchMedicines();
     }, [user])
   );
 
-  // 🔁 Auto-refresh every 60 seconds while screen is focused
+  
   useEffect(() => {
     intervalRef.current = setInterval(() => {
       fetchMedicines();
@@ -78,7 +77,7 @@ export default function DashboardScreen({ navigation }) {
     };
   }, [user]);
 
-  // Generate dose times for today and yesterday
+ 
   const getDoseTimesForDays = (timeStrings, daysBack = 1) => {
     const now = new Date();
     const doses = [];
