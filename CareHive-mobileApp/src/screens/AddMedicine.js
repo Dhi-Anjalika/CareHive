@@ -1,23 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Image, Dimensions,ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Image, Dimensions, ActivityIndicator, Alert } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { useUser } from '../contexts/UserContext';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc } from 'firebase/firestore';
 import { db } from '../DB/firebaseConfig';
 
 const screenHeight = Dimensions.get('window').height;
-
 
 export default function AddMedicine({ navigation }) {
   const [name, setName] = useState('');
   const [quantity, setQuantity] = useState('');
   const [times, setTimes] = useState(['']);
-  const [selectedMember, setSelectedMember] = useState('Myself'); 
+  const [selectedMember, setSelectedMember] = useState('self');
 
   const { user } = useUser();
   const [profiles, setProfiles] = useState([]);
-  const [selectedProfileId, setSelectedProfileId] = useState('self');
   const [loading, setLoading] = useState(true);
+  const [documentId, setDocumentId] = useState(null);
 
   const handleAddTime = () => {
     setTimes([...times, '']);
@@ -29,18 +28,37 @@ export default function AddMedicine({ navigation }) {
     setTimes(newTimes);
   };
 
-  const handleAddMedicine = () => {
+  const handleAddMedicine = async () => {
     if (!name || !quantity || !selectedMember || times.some((t) => t === '')) {
-      alert('Please fill all fields and times');
+      Alert.alert('Error', 'Please fill all fields and times');
       return;
     }
 
-    console.log('Medicine added:', { name, quantity, times, for: selectedMember });
-    alert('Medicine added successfully!');
-    setName('');
-    setQuantity('');
-    setTimes(['']);
-    setSelectedMember('Myself');
+    const selectedProfile = profiles.find(p => p.id === selectedMember);
+    const relationName = selectedProfile ? selectedProfile.relation : 'Self';
+
+    try {
+      const newMedicine = {
+        name,
+        quantity,
+        times,
+        relation: relationName,
+        userId: documentId || user.id, // foreign key
+        createdAt: new Date(),
+      };
+
+      const docRef = await addDoc(collection(db, 'medicines'), newMedicine);
+
+      console.log('Medicine saved with ID:', docRef.id);
+      Alert.alert('Success', 'Medicine added successfully!');
+      setName('');
+      setQuantity('');
+      setTimes(['']);
+      setSelectedMember('self');
+    } catch (error) {
+      console.error('Error saving medicine:', error);
+      Alert.alert('Error', 'Failed to save medicine');
+    }
   };
 
   useEffect(() => {
@@ -52,6 +70,11 @@ export default function AddMedicine({ navigation }) {
       }
 
       try {
+        // User’s document ID (used as FK)
+        const userDocId = user.id || 'b9ZC7I1EK0FEKBAdU0tz';
+        setDocumentId(userDocId);
+
+        // Self profile
         const selfProfile = {
           id: 'self',
           name: user.name || 'You',
@@ -62,7 +85,8 @@ export default function AddMedicine({ navigation }) {
           medicalId: user.medicalId || {},
         };
 
-        const q = query(collection(db, 'relations'), where('userId', '==', user.id));
+        // Family members from Firestore
+        const q = query(collection(db, 'relations'), where('userId', '==', userDocId));
         const querySnapshot = await getDocs(q);
         const familyList = [];
         querySnapshot.forEach((doc) => {
@@ -91,8 +115,6 @@ export default function AddMedicine({ navigation }) {
       </View>
     );
   }
-
-  const selectedProfile = profiles.find(p => p.id === selectedProfileId);
 
   if (profiles.length === 0) {
     return (
@@ -124,16 +146,15 @@ export default function AddMedicine({ navigation }) {
       <Text style={styles.label}>For</Text>
       <View style={styles.memberSelector}>
         {profiles.map((profile) => (
-        <TouchableOpacity
-          key={profile.id}
-          style={[styles.memberChip, selectedMember === profile.id && styles.memberChipActive]}
-          onPress={() => setSelectedMember(profile.id)}
-        >
-          <Text style={[styles.memberText, selectedMember === profile.id && styles.memberTextActive]}>
-            {profile.relation}
-          </Text>
-        </TouchableOpacity>
-
+          <TouchableOpacity
+            key={profile.id}
+            style={[styles.memberChip, selectedMember === profile.id && styles.memberChipActive]}
+            onPress={() => setSelectedMember(profile.id)}
+          >
+            <Text style={[styles.memberText, selectedMember === profile.id && styles.memberTextActive]}>
+              {profile.relation}
+            </Text>
+          </TouchableOpacity>
         ))}
       </View>
 
