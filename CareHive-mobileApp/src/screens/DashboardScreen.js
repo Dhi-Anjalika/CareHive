@@ -1,29 +1,211 @@
-import React from 'react';
-import { View, Text, StyleSheet, Dimensions, ScrollView } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Dimensions,
+  Platform, // ✅ Added Platform
+} from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import AddBtn from '../component/addbtn';
 import MedicineCard from '../component/MedicineCard';
-import AppointmentsScreen from './AppointmentsScreen';
-import { TouchableOpacity } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
-
+import { useUser } from '../contexts/UserContext';
+import { db } from '../DB/firebaseConfig';
+import { collection, getDocs, query, where, doc, updateDoc } from 'firebase/firestore';
+import * as Notifications from 'expo-notifications';
+import { useFocusEffect } from '@react-navigation/native';
 
 const screenWidth = Dimensions.get('window').width;
 
-const dueNowMedicines = [
-  { id: 1, name: 'Paracetamol', time: '8:00 AM', status: 'Due', for: 'Amma' },
-  { id: 2, name: 'Metformin', time: '9:00 AM', status: 'Due', for: 'Myself' },
-];
-
-const nextMedicines = [
-  { id: 3, name: 'Vitamin C', time: '12:30 PM', status: 'Next', for: 'Thaththa' },
-  { id: 4, name: 'Amoxicillin', time: '8:00 PM', status: 'Next', for: 'Ravi' },
-  { id: 5, name: 'Omega 3', time: '6:00 PM', status: 'Next', for: 'Myself' },
-];
 export default function DashboardScreen({ navigation }) {
+  const { user } = useUser();
+  const [medicines, setMedicines] = useState([]);
+  const intervalRef = useRef(null);
+
+  // Request notification permission
+  useEffect(() => {
+    const registerForNotifications = async () => {
+      const { status } = await Notifications.getPermissionsAsync();
+      if (status !== 'granted') {
+        const { status: newStatus } = await Notifications.requestPermissionsAsync();
+        if (newStatus !== 'granted') return;
+      }
+
+      if (Platform.OS === 'android') {
+        await Notifications.setNotificationChannelAsync('default', {
+          name: 'default',
+          importance: Notifications.AndroidImportance.MAX,
+          vibrationPattern: [0, 250, 250, 250],
+          lightColor: '#FF231F7C',
+        });
+      }
+    };
+    registerForNotifications();
+  }, []);
+
+  // Fetch medicines from Firebase
+  const fetchMedicines = async () => {
+    if (!user?.id) return;
+    try {
+      const q = query(collection(db, 'medicines'), where('userId', '==', user.id));
+      const snapshot = await getDocs(q);
+      const meds = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setMedicines(meds);
+    } catch (error) {
+      console.error('Error fetching medicines:', error);
+    }
+  };
+
+  // Refresh on focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchMedicines();
+    }, [user])
+  );
+
+  // 🔁 Auto-refresh every 60 seconds while screen is focused
+  useEffect(() => {
+    // Start interval when component mounts
+    intervalRef.current = setInterval(() => {
+      fetchMedicines();
+    }, 60 * 1000); // 60,000 ms = 1 minute
+
+    // Clear interval when unmounting
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, [user]);
+
+  // Convert time string to Date object
+  const getNextDoseTime = (timeStr) => {
+    if (!timeStr) return null;
+    const now = new Date();
+    const match = timeStr.match(/(\d{1,2}):(\d{2})(AM|PM)/i);
+    if (!match) return null;
+
+    let hours = parseInt(match[1]);
+    const minutes = parseInt(match[2]);
+    const meridiem = match[3].toUpperCase();
+
+    if (meridiem === 'PM' && hours < 12) hours += 12;
+    if (meridiem === 'AM' && hours === 12) hours = 0;
+
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate(), hours, minutes);
+  };
+
+  // Schedule reminder 5 minutes before dose
+  const scheduleReminder = async (medName, doseTime) => {
+    const now = new Date();
+    const triggerTime = new Date(doseTime.getTime() - 5 * 60 * 1000);
+    if (triggerTime <= now) return;
+
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: 'Medicine Reminder',
+        body: `Time to take ${medName}`,
+      },
+      trigger: { date: triggerTime },
+    });
+  };
+
+  // 💡 Improved logic: show ALL medicines with future doses in "Next"
+  const now = new Date();
+  const startOfDay = new Date(now);
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(now);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  const processMedicines = medicines.map(med => {
+    const todayDoses = (med.times || []).map(timeStr => {
+      const doseTime = getNextDoseTime(timeStr);
+      return { timeStr, doseTime };
+    }).filter(item => item.doseTime);
+
+    let takenToday = 0;
+    if (med.lastTakenAt) {
+      const lastTakenDate = new Date(med.lastTakenAt);
+      if (lastTakenDate >= startOfDay && lastTakenDate <= endOfDay) {
+        takenToday = med.taken || 0;
+      }
+    }
+
+    let hasDue = false;
+    let nextTime = null;
+
+    // Check from first un-taken dose onward
+    for (let i = takenToday; i < todayDoses.length; i++) {
+      const { doseTime, timeStr } = todayDoses[i];
+      if (doseTime <= now) {
+        hasDue = true;
+        nextTime = timeStr;
+        break;
+      } else if (!nextTime) {
+        nextTime = timeStr;
+        // Don't break — keep checking for due doses later
+      }
+    }
+
+    const hasFuture = todayDoses.some((d, idx) => idx >= takenToday && d.doseTime > now);
+
+    let status = 'Taken';
+    if (hasDue) {
+      status = 'Due';
+    } else if (hasFuture) {
+      status = 'Next';
+      // Schedule reminder for the first future dose
+      const firstFuture = todayDoses.find((d, idx) => idx >= takenToday && d.doseTime > now);
+      if (firstFuture) {
+        scheduleReminder(med.name, firstFuture.doseTime);
+      }
+    }
+
+    return {
+      ...med,
+      status,
+      currentTime: nextTime,
+      takenToday,
+    };
+  });
+
+  const dueNowMedicines = processMedicines.filter(m => m.status === 'Due');
+  const nextMedicines = processMedicines.filter(m => m.status === 'Next');
+
+  // Handle Taken
+  const handleTaken = async (id) => {
+    try {
+      const medRef = doc(db, 'medicines', id);
+      const med = medicines.find(m => m.id === id);
+      const takenCount = (med.taken || 0) + 1;
+      const now = new Date();
+
+      await updateDoc(medRef, { taken: takenCount, lastTakenAt: now.toISOString() });
+      fetchMedicines(); // Refresh
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Handle Skip
+  const handleSkip = async (id) => {
+    try {
+      const medRef = doc(db, 'medicines', id);
+      const med = medicines.find(m => m.id === id);
+      const skippedCount = (med.skipped || 0) + 1;
+      const now = new Date();
+
+      await updateDoc(medRef, { skipped: skippedCount, lastTakenAt: now.toISOString() });
+      fetchMedicines(); // Refresh
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   return (
     <View style={styles.container}>
-      {/* Header Section */}
       <View style={styles.profileContainer}>
         <View style={styles.left}>
           <Text style={styles.appTitle}>CareHive</Text>
@@ -39,42 +221,52 @@ export default function DashboardScreen({ navigation }) {
         </View>
       </View>
 
-      {/* Bottom Section */}
       <View style={styles.bottomContainer}>
-        {/* Quick Actions */}
         <Text style={styles.sectionTitle}>Quick Actions</Text>
         <View style={styles.btnSection}>
-          <AddBtn 
-            label="Add Medicine" 
-            onPress={() => console.log("Add medicine pressed")}
-          />
-            <AddBtn 
-              label="Appointment" 
-              onPress={() => navigation.navigate('AppointmentsScreen')}
-            />
+          <AddBtn label="Add Medicine" onPress={() => navigation.navigate('AddMedicine')} />
+          <AddBtn label="Appointment" onPress={() => navigation.navigate('AppointmentsScreen')} />
         </View>
 
         <View style={styles.mediView}>
           <Text style={styles.mediTitle}>Medicines</Text>
-
-          <ScrollView contentContainerStyle={{ paddingBottom: 10 }}
-          showsVerticalScrollIndicator={false}>
-           
-           {dueNowMedicines.length > 0 && (
+          <ScrollView contentContainerStyle={{ paddingBottom: 10 }} showsVerticalScrollIndicator={false}>
+            {processMedicines.length === 0 ? (
+              <Text style={{ textAlign: 'center', marginTop: 20, color: '#555' }}>No medicines found</Text>
+            ) : (
               <>
-                <Text style={styles.sectionLabel}>Due Now</Text>
-                {dueNowMedicines.map(med => (
-                  <MedicineCard key={med.id} {...med} />
-                ))}
-              </>
-            )}
-
-              {nextMedicines.length > 0 && (
-              <>
-                <Text style={styles.sectionLabel}>Next</Text>
-                {nextMedicines.map(med => (
-                  <MedicineCard key={med.id} {...med} />
-                ))}
+                {dueNowMedicines.length > 0 && (
+                  <>
+                    <Text style={styles.sectionLabel}>Due Now</Text>
+                    {dueNowMedicines.map(med => (
+                      <MedicineCard
+                        key={med.id}
+                        name={med.name}
+                        time={med.currentTime}
+                        status={med.status}
+                        for={med.relation}
+                        onTaken={() => handleTaken(med.id)}
+                        onSkip={() => handleSkip(med.id)}
+                      />
+                    ))}
+                  </>
+                )}
+                {nextMedicines.length > 0 && (
+                  <>
+                    <Text style={styles.sectionLabel}>Next</Text>
+                    {nextMedicines.map(med => (
+                      <MedicineCard
+                        key={med.id}
+                        name={med.name}
+                        time={med.currentTime}
+                        status={med.status}
+                        for={med.relation}
+                        onTaken={() => handleTaken(med.id)}
+                        onSkip={() => handleSkip(med.id)}
+                      />
+                    ))}
+                  </>
+                )}
               </>
             )}
           </ScrollView>
@@ -85,12 +277,7 @@ export default function DashboardScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F6F9FF',
-  },
-
-  // Header Section
+  container: { flex: 1, backgroundColor: '#F6F9FF' },
   profileContainer: {
     backgroundColor: '#2298d8',
     flexDirection: 'row',
@@ -119,37 +306,10 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 3,
   },
-
-  // Bottom Section
-  bottomContainer: {
-    flex: 1,
-    padding: 20,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 20,
-    color: '#333',
-  },
+  bottomContainer: { flex: 1, padding: 20 },
+  sectionTitle: { fontSize: 18, fontWeight: '600', marginBottom: 20, color: '#333' },
   btnSection: { flexDirection: 'row', justifyContent: 'space-between' },
-
-  // Medicine Section
-  mediView: {
-    marginTop: 20,
-    height: '85%', 
-    borderRadius: 10,
-    padding: 5,
-  },
-  mediTitle: {
-    color: '#0b0b0bff',
-    fontSize: 19,
-    fontWeight: '500',
-  },
-  sectionLabel: {
-    color: '#000000ff',
-    fontSize: 14,
-    fontWeight: '600',
-    marginTop: 10,
-    marginLeft: 10,
-  },
+  mediView: { marginTop: 20, height: '85%', borderRadius: 10, padding: 5 },
+  mediTitle: { color: '#0b0b0bff', fontSize: 19, fontWeight: '500' },
+  sectionLabel: { color: '#000000ff', fontSize: 14, fontWeight: '600', marginTop: 10, marginLeft: 10 },
 });
