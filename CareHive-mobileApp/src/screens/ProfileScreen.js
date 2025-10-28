@@ -205,6 +205,13 @@ export default function ProfileScreen({ navigation }) {
       >
         <Text style={styles.editButtonText}>Add Family Member</Text>
       </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.editButton}
+        onPress={() => navigation.navigate('ViewPrescriptionsScreen')}
+      >
+        <Text style={styles.editButtonText}>Priscriptions</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }

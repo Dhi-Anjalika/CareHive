@@ -8,6 +8,7 @@ import AppointmentsScreen from '../screens/AppointmentsScreen';
 import AddAppointmentScreen from '../screens/AddAppointmentScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import AddFamilyMembers from '../screens/AddFamilyMembers';
+import ViewPrescriptionsScreen from '../screens/ViewPrescriptionsScreen';
 // import QRScanner from '../screens/QrScreen';
 
 const Stack = createNativeStackNavigator();
@@ -22,6 +23,7 @@ export default function RootStack() {
   <Stack.Screen name="AddAppointmentScreen" component={AddAppointmentScreen} />
   <Stack.Screen name="RegisterScreen" component={RegisterScreen} />
   <Stack.Screen name='AddFamilyMembers' component={AddFamilyMembers}/>
+  <Stack.Screen name='ViewPrescriptionsScreen' component={ViewPrescriptionsScreen}/>
   {/* <Stack.Screen name='QRScanner' component={QRScanner}/> */}
 </Stack.Navigator>
   );
