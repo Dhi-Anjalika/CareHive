@@ -130,8 +130,21 @@ export default function ViewPrescriptionsScreen({ navigation }) {
           <Icon name="arrow-back" size={28} color="#2298d8" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Prescriptions</Text>
-        <View style={{ width: 28 }} />
+        {/* <TouchableOpacity onPress={() => navigation.navigate('AddPrescriptionScreen')}>
+          <Icon name="add-circle-outline" size={28} color="#2298d8" />
+        </TouchableOpacity> */}
+        <TouchableOpacity
+          onPress={() =>
+            navigation.navigate('AddPrescriptionScreen', { patientId: selectedMember })
+          }
+        >
+          <Icon name="add-circle-outline" size={28} color="#2298d8" />
+        </TouchableOpacity>
+
+
+
       </View>
+
 
       {/* Family Member Selector */}
       <Text style={styles.label}>For</Text>

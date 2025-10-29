@@ -186,7 +186,7 @@ export default function ProfileScreen({ navigation }) {
         </View>
       )}
 
-      <TouchableOpacity
+      {/* <TouchableOpacity
         style={styles.editButton}
         onPress={() => {
           if (selectedProfileId === 'self') {
@@ -197,7 +197,7 @@ export default function ProfileScreen({ navigation }) {
         }}
       >
         <Text style={styles.editButtonText}>Edit Medical Info</Text>
-      </TouchableOpacity>
+      </TouchableOpacity> */}
 
       <TouchableOpacity
         style={styles.editButton}
