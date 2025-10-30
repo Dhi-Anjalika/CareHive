@@ -30,7 +30,7 @@ const seedData = async () => {
 
     // Create patient (matching your frontend mock data)
     const patient = await Patient.create({
-      patientId: 'P001',
+      patientId: 'P01',
       name: 'Janaka Perera',
       age: 72,
       bloodGroup: 'O+',
@@ -43,7 +43,7 @@ const seedData = async () => {
     // Create medical records
     await MedicalRecord.create([
       {
-        patientId: 'P001',
+        patientId: 'P01',
         type: 'report',
         name: 'Blood Test.pdf',
         date: new Date('2025-09-01'),
@@ -51,7 +51,7 @@ const seedData = async () => {
         uploadedBy: doctor._id
       },
       {
-        patientId: 'P001',
+        patientId: 'P01',
         type: 'report',
         name: 'Chest X-Ray.png',
         date: new Date('2025-09-10'),
@@ -59,7 +59,7 @@ const seedData = async () => {
         uploadedBy: doctor._id
       },
       {
-        patientId: 'P001',
+        patientId: 'P01',
         type: 'note',
         name: 'Doctor Note',
         date: new Date(),
@@ -71,14 +71,14 @@ const seedData = async () => {
     // Create appointments
     await Appointment.create([
       {
-        patientId: 'P001',
+        patientId: 'P01',
         doctorId: doctor._id,
         date: new Date('2025-10-03'),
         note: 'Follow-up',
         status: 'upcoming'
       },
       {
-        patientId: 'P001',
+        patientId: 'P01',
         doctorId: doctor._id,
         date: new Date('2025-09-10'),
         note: 'BP review',
@@ -98,5 +98,6 @@ const seedData = async () => {
     process.exit(1);
   }
 };
+
 
 seedData();
