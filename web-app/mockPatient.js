@@ -1,6 +1,6 @@
 // src/data/mockPatient.js
 export const patient = {
-  id: "P01 ",
+  id: "P01",
   name: "Janaka Perera",
   age: 72,
   bloodGroup: "O+",
@@ -28,3 +28,4 @@ export const patient = {
     { text: "Continue current BP medication", createdAt: "2025-09-10T09:00:00Z" }
   ]
 };
+
